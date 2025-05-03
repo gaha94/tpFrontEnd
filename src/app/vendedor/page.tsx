@@ -10,63 +10,83 @@ interface Producto {
   stock: number
 }
 
+interface PedidoItem {
+  producto: Producto
+  cantidad: number
+}
+
+interface Venta {
+  id: string
+  vendedor: string
+  fecha: string
+  productos: PedidoItem[]
+  total: number
+  tipoComprobante?: 'boleta' | 'factura'
+  cliente?: {
+    nombres?: string
+    dni?: string
+    direccion?: string
+    ruc?: string
+    razonSocial?: string
+  }
+  estado: 'pendiente' | 'aprobado' | 'cancelado'
+}
+
+
 export default function VendedorPage() {
+  const { logout, user } = useAuth()
+  const [ventasHoy, setVentasHoy] = useState<Venta[]>([])
+  const [mostrarNuevaVenta, setMostrarNuevaVenta] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [productos, setProductos] = useState<Producto[]>([])
-  const [pedido, setPedido] = useState<{ producto: Producto; cantidad: number }[]>([])
+  const [pedido, setPedido] = useState<PedidoItem[]>([])
+  const [mostrarClienteModal, setMostrarClienteModal] = useState(false)
+  const [tipoComprobante, setTipoComprobante] = useState<'boleta' | 'factura'>('boleta')
+  const [ventaEditandoId, setVentaEditandoId] = useState<string | null>(null)
+  const [cliente, setCliente] = useState({
+    nombres: '',
+    dni: '',
+    direccion: '',
+    ruc: '',
+    razonSocial: ''
+  })
+
 
   useEffect(() => {
-    // Productos simulados cargados automáticamente
+    // Simular carga de productos
     setProductos([
       { id: '1', nombre: 'Cemento', precio: 32.5, stock: 100 },
       { id: '2', nombre: 'Clavo', precio: 0.5, stock: 1000 },
       { id: '3', nombre: 'Martillo', precio: 22.0, stock: 30 },
-      { id: '4', nombre: 'Pintura Blanca', precio: 45.0, stock: 15 },
-      { id: '5', nombre: 'Taladro', precio: 210.0, stock: 10 },
-      { id: '6', nombre: 'Tornillo', precio: 0.2, stock: 5000 }
     ])
+
+    // Cargar ventas del día
+    const hoy = new Date().toDateString()
+    const todas = Object.keys(localStorage)
+      .map((key) => {
+        try {
+          const venta = JSON.parse(localStorage.getItem(key) || '')
+          return venta
+        } catch {
+          return null
+        }
+      })
+      .filter((venta): venta is Venta => {
+        if (!venta?.fecha) return false
+        const fechaVenta = new Date(venta.fecha).toDateString()
+        return fechaVenta === hoy
+      })      
+
+    setVentasHoy(todas)
   }, [])
 
-  const handleBuscar = () => {
-    const resultados = productos.filter(p =>
-      p.nombre.toLowerCase().includes(busqueda.toLowerCase())
-    )
-    setProductos(resultados)
-  }
-
   const agregarProducto = (producto: Producto) => {
-    const yaExiste = pedido.find(item => item.producto.id === producto.id)
-    if (!yaExiste) {
+    const existe = pedido.find((p) => p.producto.id === producto.id)
+    if (!existe) {
       setPedido([...pedido, { producto, cantidad: 1 }])
     }
   }
 
-  const guardarPedido = (pedidoActualizado: typeof pedido) => {
-    const pedidoId = Date.now().toString()
-    const vendedor = user?.username || 'Desconocido'
-    const fecha = new Date().toLocaleString('es-PE', {
-      dateStyle: 'short',
-      timeStyle: 'short'
-    })
-  
-    const total = pedidoActualizado.reduce(
-      (acc, item) => acc + item.producto.precio * item.cantidad,
-      0
-    )
-  
-    const datosGuardados = {
-      id: pedidoId,
-      vendedor,
-      fecha,
-      productos: pedidoActualizado,
-      total
-    }
-  
-    localStorage.setItem(pedidoId, JSON.stringify(datosGuardados))
-    navigator.clipboard.writeText(pedidoId)
-    alert(`Pedido registrado. Número de venta: ${pedidoId} (copiado)`)
-    setPedido([])
-  }
   const cambiarCantidad = (id: string, nuevaCantidad: number) => {
     setPedido(pedido.map(item =>
       item.producto.id === id ? { ...item, cantidad: nuevaCantidad } : item
@@ -77,106 +97,332 @@ export default function VendedorPage() {
     setPedido(pedido.filter(item => item.producto.id !== id))
   }
 
-  const total = pedido.reduce(
-    (acc, item) => acc + item.producto.precio * item.cantidad,
-    0
-  )
+  const guardarPedido = () => {
+    const id = ventaEditandoId || Date.now().toString()
+    const fecha = new Date().toISOString()
+    const total = pedido.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0)
+  
+    const venta: Venta = {
+      id,
+      vendedor: user?.username || 'Desconocido',
+      fecha,
+      productos: pedido,
+      total,
+      tipoComprobante,
+      cliente,
+      estado: 'pendiente'
+    }
+  
+    localStorage.setItem(id, JSON.stringify(venta))
+  
+    // Reemplazar en la lista de ventasHoy
+    setVentasHoy((prev) => {
+      const actualizadas = prev.filter(v => v.id !== id)
+      return [...actualizadas, venta]
+    })
+  
+    alert(`Venta registrada. Número: ${id}`)
+    setPedido([])
+    setMostrarNuevaVenta(false)
+    setVentaEditandoId(null)
+  }  
 
-  const { logout, user } = useAuth()
+  const total = pedido.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0)
 
   return (
     <ProtectedRoute allowedRoles={['vendedor']}>
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6">Ventas - Vendedor</h1>
-
-        {/* Barra de búsqueda */}
-        <div className="flex gap-3 mb-6">
-          <input
-            type="text"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre"
-            className="border px-4 py-2 rounded w-full"
-          />
+      <div className="p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">
+            {mostrarNuevaVenta ? 'Nueva venta' : 'Ventas del día'}
+          </h1>
           <button
-            onClick={handleBuscar}
+            onClick={() => {
+              setMostrarNuevaVenta(!mostrarNuevaVenta)
+              setPedido([])
+            }}
             className="bg-blue-600 text-white px-4 py-2 rounded"
           >
-            Buscar
+            {mostrarNuevaVenta ? 'Volver al historial' : 'Nueva venta'}
           </button>
         </div>
 
-        {/* Resultados */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          {productos.map(producto => (
-            <div key={producto.id} className="bg-white border rounded shadow p-4 flex flex-col justify-between">
-              <div>
-                <h2 className="font-semibold text-lg">{producto.nombre}</h2>
-                <p className="text-sm text-gray-600">Precio: S/ {producto.precio.toFixed(2)}</p>
-                <p className="text-sm text-gray-600">Stock: {producto.stock}</p>
-              </div>
-              <button
-                className="mt-4 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-                onClick={() => agregarProducto(producto)}
-              >
-                Agregar al pedido
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Pedido actual */}
-        <div className="bg-white p-4 rounded shadow border">
-          <h2 className="text-xl font-semibold mb-4">Resumen del Pedido</h2>
-
-          {pedido.length === 0 ? (
-            <p className="text-gray-500">No hay productos en el pedido.</p>
-          ) : (
-            <ul className="space-y-3">
-              {pedido.map(({ producto, cantidad }) => (
-                <li key={producto.id} className="flex justify-between items-center">
-                  <span>{producto.nombre} - S/ {producto.precio} x {cantidad}</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={producto.stock}
-                      value={cantidad}
-                      onChange={(e) =>
-                        cambiarCantidad(producto.id, parseInt(e.target.value))
-                      }
-                      title='Cantidad del producto'
-                      className="w-20 border px-2 py-1 rounded"
-                    />
-                    <button
-                      onClick={() => eliminarProducto(producto.id)}
-                      className="text-red-600 text-sm hover:underline"
+        {!mostrarNuevaVenta ? (
+          <div>
+            {ventasHoy.length === 0 ? (
+              <p>No hay ventas registradas hoy.</p>
+            ) : (
+            <div className="space-y-4">
+              {ventasHoy.map((venta) => (
+                <div key={venta.id} className="p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition">
+                  <p className="text-sm text-gray-500">N° {venta.id}</p>
+                  <p><strong>Fecha:</strong> {venta.fecha}</p>  
+                  <p className="text-lg font-bold text-gray-800">
+                    Total: <span className="text-blue-600">S/ {venta.total.toFixed(2)}</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <strong>Estado:</strong>
+                    <span
+                      className={`px-2 py-1 text-xs rounded font-semibold uppercase ${
+                        venta.estado === 'pendiente'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : venta.estado === 'aprobado'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
                     >
-                      Quitar
+                      {venta.estado}
+                    </span>
+                  </p>
+                  {venta.tipoComprobante && (
+                    <p><strong>Comprobante:</strong> {venta.tipoComprobante}</p>
+                  )}
+
+                  {venta.tipoComprobante === 'boleta' && venta.cliente?.nombres && (
+                    <>
+                      <p><strong>Cliente:</strong> {venta.cliente.nombres}</p>
+                      <p><strong>DNI:</strong> {venta.cliente.dni}</p>
+                      <p><strong>Dirección:</strong> {venta.cliente.direccion}</p>
+                    </>
+                  )}
+
+                  {venta.tipoComprobante === 'factura' && venta.cliente?.razonSocial && (
+                    <>
+                      <p><strong>Razón Social:</strong> {venta.cliente.razonSocial}</p>
+                      <p><strong>RUC:</strong> {venta.cliente.ruc}</p>
+                      <p><strong>Dirección:</strong> {venta.cliente.direccion}</p>
+                    </>
+                  )}
+
+                  <p className="text-sm text-gray-600 mt-2">
+                    Productos: {venta.productos.map(p => `${p.producto.nombre} x ${p.cantidad}`).join(', ')}
+                  </p>
+
+                  {venta.estado === 'pendiente' && (
+                    <button
+                      onClick={() => {
+                        setMostrarNuevaVenta(true)
+                        setPedido(venta.productos)
+                        setTipoComprobante(venta.tipoComprobante || 'boleta')
+                        setCliente({
+                          nombres: venta.cliente?.nombres || '',
+                          dni: venta.cliente?.dni || '',
+                          direccion: venta.cliente?.direccion || '',
+                          ruc: venta.cliente?.ruc || '',
+                          razonSocial: venta.cliente?.razonSocial || ''
+                        })            
+                      }}
+                      className="mt-2 text-blue-600 underline text-sm"
+                    >
+                      Modificar
                     </button>
-                  </div>
-                </li>
+                  )}
+                </div>
               ))}
-            </ul>
-          )}
-
-          {pedido.length > 0 && (
-            <div className="mt-6 flex justify-between items-center">
-              <p className="font-bold text-lg">Total: S/ {total.toFixed(2)}</p>
-              <button
-                onClick={() => guardarPedido(pedido)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                Confirmar pedido
-              </button>
             </div>
-          )}
-        </div>
+            )}
+          </div>
+        ) :  (
+          <>
+            {/* Sección de búsqueda */}
+            <div className="bg-white rounded shadow p-4 mb-6">
+              <h2 className="text-lg font-bold mb-3">Buscar producto</h2>
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por nombre"
+                className="border px-3 py-2 rounded w-full"
+              />
+            </div>
+        
+            {/* Resultados */}
+            <div className="bg-white rounded shadow p-4 mb-6">
+              <h2 className="text-lg font-bold mb-3">Resultados</h2>
+              {productos.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase())).length === 0 ? (
+                <p className="text-sm text-gray-500">No se encontraron productos.</p>
+              ) : (
+                <ul className="divide-y">
+                  {productos
+                    .filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+                    .map(producto => (
+                      <li key={producto.id} className="py-3 flex justify-between items-center">
+                        <div>
+                          <p className="font-semibold">{producto.nombre}</p>
+                          <p className="text-sm text-gray-600">S/ {producto.precio} - Stock: {producto.stock}</p>
+                        </div>
+                        <button
+                          onClick={() => agregarProducto(producto)}
+                          className="bg-green-600 text-white px-3 py-1 rounded"
+                        >
+                          Agregar
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+        
+            {/* Resumen del pedido */}
+            <div className="bg-white rounded shadow p-4 mb-6">
+              <h2 className="text-lg font-bold mb-3">Resumen del pedido</h2>
+              {pedido.length === 0 ? (
+                <p className="text-sm text-gray-500">No hay productos en el pedido.</p>
+              ) : (
+                <ul className="mb-4">
+                  {pedido.map(({ producto, cantidad }) => (
+                    <li key={producto.id} className="flex justify-between items-center mb-2">
+                      <span>{producto.nombre} - S/ {producto.precio} x {cantidad}</span>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          max={producto.stock}
+                          value={cantidad}
+                          onChange={(e) => cambiarCantidad(producto.id, parseInt(e.target.value))}
+                          title='Cambiar cantidad'
+                          className="w-16 border px-2 rounded"
+                        />
+                        <button
+                          onClick={() => eliminarProducto(producto.id)}
+                          className="text-red-600"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {pedido.length > 0 && (
+                <>
+                  <p className="font-bold">Total: S/ {total.toFixed(2)}</p>
+                  <button
+                    onClick={() => setMostrarClienteModal(true)}
+                    className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
+                  >
+                    Confirmar venta
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        ) } 
+        
+          {/* aquí mantienes la parte de historial */}
+        
 
-        <button onClick={logout} className="mt-8 text-red-600 underline">
+        <button onClick={logout} className="mt-6 text-red-600 underline block">
           Cerrar sesión
         </button>
       </div>
+      {mostrarClienteModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+    <div className="bg-white p-6 rounded shadow w-full max-w-lg">
+      <h2 className="text-xl font-bold mb-4">Datos del cliente</h2>
+
+      <div className="mb-4">
+        <label className="font-medium mr-4">Tipo de comprobante:</label>
+        <label className="mr-2">
+          <input
+            type="radio"
+            name="tipo"
+            checked={tipoComprobante === 'boleta'}
+            onChange={() => setTipoComprobante('boleta')}
+          /> Boleta
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="tipo"
+            checked={tipoComprobante === 'factura'}
+            onChange={() => setTipoComprobante('factura')}
+          /> Factura
+        </label>
+      </div>
+
+      {tipoComprobante === 'boleta' ? (
+        <>
+          <input
+            type="text"
+            placeholder="Nombres completos"
+            className="border rounded w-full px-3 py-2 mb-2"
+            value={cliente.nombres}
+            onChange={(e) => setCliente({ ...cliente, nombres: e.target.value })}
+          />
+          <input
+            type="text"
+            placeholder="DNI"
+            className="border rounded w-full px-3 py-2 mb-2"
+            value={cliente.dni}
+            onChange={(e) => setCliente({ ...cliente, dni: e.target.value })}
+          />
+          <input
+            type="text"
+            placeholder="Dirección"
+            className="border rounded w-full px-3 py-2 mb-2"
+            value={cliente.direccion}
+            onChange={(e) => setCliente({ ...cliente, direccion: e.target.value })}
+          />
+        </>
+      ) : (
+        <>
+          <input
+            type="text"
+            placeholder="RUC"
+            className="border rounded w-full px-3 py-2 mb-2"
+            value={cliente.ruc}
+            onChange={(e) => setCliente({ ...cliente, ruc: e.target.value })}
+          />
+          <input
+            type="text"
+            placeholder="Razón social"
+            className="border rounded w-full px-3 py-2 mb-2"
+            value={cliente.razonSocial}
+            onChange={(e) => setCliente({ ...cliente, razonSocial: e.target.value })}
+          />
+          <input
+            type="text"
+            placeholder="Dirección"
+            className="border rounded w-full px-3 py-2 mb-2"
+            value={cliente.direccion}
+            onChange={(e) => setCliente({ ...cliente, direccion: e.target.value })}
+          />
+        </>
+      )}
+
+      <div className="flex justify-end gap-3 mt-4">
+        <button
+          onClick={() => setMostrarClienteModal(false)}
+          className="border px-4 py-2 rounded"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={() => {
+            // Validación mínima
+            if (tipoComprobante === 'boleta' && (!cliente.nombres || !cliente.dni)) {
+              alert('Completa todos los campos de boleta.')
+              return
+            }
+            if (tipoComprobante === 'factura' && (!cliente.ruc || !cliente.razonSocial)) {
+              alert('Completa todos los campos de factura.')
+              return
+            }
+
+            // Aquí guardas el pedido incluyendo cliente
+            guardarPedido()
+            setMostrarClienteModal(false)
+          }}
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          Confirmar venta
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </ProtectedRoute>
   )
 }

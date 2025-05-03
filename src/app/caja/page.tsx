@@ -28,11 +28,22 @@ export default function CajaPage() {
   const buscarPedido = () => {
     const datos = localStorage.getItem(pedidoId)
     if (datos) {
-      setPedido(JSON.parse(datos))
+      try {
+        const parsed = JSON.parse(datos)
+        if (Array.isArray(parsed.productos)) {
+          setPedido(parsed.productos)
+        } else {
+          alert('El formato del pedido no es válido.')
+          setPedido(null)
+        }
+      } catch {
+        alert('Error al leer el pedido.')
+        setPedido(null)
+      }
     } else {
       alert('Pedido no encontrado.')
       setPedido(null)
-    }
+    }   
   }
 
   const total = pedido?.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0) || 0
