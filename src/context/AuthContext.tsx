@@ -1,32 +1,46 @@
+// src/context/AuthContext.tsx
 'use client'
 import { createContext, useContext, useState, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import api from '@/lib/api'
 
 type Role = 'admin' | 'caja' | 'vendedor'
 
+interface User {
+  id: number
+  nombre: string
+  correo: string
+  rol: Role
+}
+
 interface AuthContextType {
-  user: { username: string; role: Role } | null
-  login: (username: string, password: string) => void
+  user: User | null
+  login: (correo: string, password: string) => Promise<void>
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<{ username: string; role: Role } | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const router = useRouter()
 
-  const login = (username: string) => {
-    // Simular login (reemplazar luego con API)
-    let role: Role = 'vendedor'
-    if (username === 'admin') role = 'admin'
-    else if (username === 'caja') role = 'caja'
+  const login = async (correo: string, password: string) => {
+    try {
+      const res = await api.post('/login', { correo, password })
+      const { token, user } = res.data
 
-    setUser({ username, role })
-    router.push(`/${role}`) // redirige al dashboard correspondiente
+      localStorage.setItem('token', token)
+      setUser(user)
+      router.push(`/${user.rol}`) // Redirige según el rol
+    } catch (err) {
+      alert('Correo o contraseña incorrectos')
+      console.error('Error en login:', err)
+    }
   }
 
   const logout = () => {
+    localStorage.removeItem('token')
     setUser(null)
     router.push('/login')
   }
