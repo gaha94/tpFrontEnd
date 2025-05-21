@@ -20,6 +20,7 @@ export interface Cliente {
   
   export interface Venta {
     id: string
+    
     tipoComprobante: 'boleta' | 'factura'
     metodoPago: 'efectivo' | 'tarjeta' | 'yape'
     cliente: {
@@ -32,3 +33,10 @@ export interface Cliente {
     total: number
   }
   
+  export interface VentaPendiente {
+    id: number
+    numero_venta: string
+    nombre: string
+    telefono: string
+    total: number
+  }

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Producto } from '@/types/venta'
 import { motion, AnimatePresence } from 'framer-motion'
+import { fetchProductos } from '@/services/productService'
 
 
 export default function ProductosPage() {
@@ -22,13 +23,16 @@ export default function ProductosPage() {
       marca: ''
     })
     
-
-  // Cargar productos simulados de localStorage
   useEffect(() => {
-    const data = localStorage.getItem('productos')
-    if (data) {
-      setProductos(JSON.parse(data))
+    const cargar = async () => {
+      try {
+        const data = await fetchProductos()
+        setProductos(data)
+      } catch (error) {
+        console.error('Error al obtener productos:', error)
+      }
     }
+    cargar()
   }, [])
 
   const guardarProductos = (productosActualizados: Producto[]) => {

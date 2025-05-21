@@ -1,7 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { getVentasPendientes } from '@/services/ventaService'
+import { VentaPendiente } from '@/types/venta'
 
 interface Producto {
   id: string
@@ -19,6 +21,8 @@ type MetodoPago = 'efectivo' | 'tarjeta' | 'yape'
 
 export default function CajaPage() {
   const { logout } = useAuth()
+  const [ventasPendientes, setVentasPendientes] = useState<VentaPendiente[]>([])
+
   const [pedidoId, setPedidoId] = useState('')
   const [pedido, setPedido] = useState<PedidoItem[] | null>(null)
   const [tipoComprobante, setTipoComprobante] = useState<'boleta' | 'factura'>('boleta')
@@ -55,6 +59,19 @@ export default function CajaPage() {
   }
 }
 
+useEffect(() => {
+  const cargarPendientes = async () => {
+    try {
+      const data = await getVentasPendientes()
+      setVentasPendientes(data) // ✅ ahora sí matchea con el tipo
+    } catch (err) {
+      console.error('Error al cargar ventas pendientes:', err)
+    }
+  }
+
+  cargarPendientes()
+}, [])
+
   const total = pedido?.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0) || 0
 
   const finalizarVenta = () => {
@@ -82,6 +99,42 @@ export default function CajaPage() {
             Buscar
           </button>
         </div>
+
+        {ventasPendientes.length > 0 && (
+  <div className="mt-6">
+    <h2 className="text-lg font-semibold mb-2">Ventas Pendientes</h2>
+    <table className="w-full text-sm border">
+      <thead>
+        <tr className="bg-gray-100">
+          <th className="border px-2 py-1">N° Venta</th>
+          <th className="border px-2 py-1">Cliente</th>
+          <th className="border px-2 py-1">Monto</th>
+          <th className="border px-2 py-1">Contacto</th>
+          <th className="border px-2 py-1">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {ventasPendientes.map((venta) => (
+          <tr key={venta.id}>
+            <td className="border px-2 py-1">{venta.numero_venta}</td>
+            <td className="border px-2 py-1">{venta.nombre}</td>
+            <td className="border px-2 py-1">S/ {venta.total.toFixed(2)}</td>
+            <td className="border px-2 py-1">{venta.telefono}</td>
+            <td className="border px-2 py-1">
+              <button
+                onClick={() => setPedidoId(venta.id.toString())}
+                className="bg-blue-600 text-white px-3 py-1 rounded"
+              >
+                Seleccionar
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)}
+
 
         {pedido && (
           <>
