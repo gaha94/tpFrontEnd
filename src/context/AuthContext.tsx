@@ -1,4 +1,3 @@
-// src/context/AuthContext.tsx
 'use client'
 import { createContext, useContext, useState, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
@@ -9,13 +8,18 @@ type Role = 'admin' | 'caja' | 'vendedor'
 interface User {
   id: number
   nombre: string
-  correo: string
   rol: Role
+  correo: string
+}
+
+interface LoginResponse {
+  token: string
+  user: User
 }
 
 interface AuthContextType {
   user: User | null
-  login: (correo: string, password: string) => Promise<void>
+  login: (correo: string, password: string) => void
   logout: () => void
 }
 
@@ -27,15 +31,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (correo: string, password: string) => {
     try {
-      const res = await api.post('/login', { correo, password })
-      const { token, user } = res.data
+      const { data }: { data: LoginResponse } = await api.post('/login', { correo, password })
 
-      localStorage.setItem('token', token)
-      setUser(user)
-      router.push(`/${user.rol}`) // Redirige según el rol
-    } catch (err) {
-      alert('Correo o contraseña incorrectos')
-      console.error('Error en login:', err)
+      localStorage.setItem('token', data.token)
+      setUser(data.user)
+      router.push(`/${data.user.rol}`)
+    } catch (error) {
+      console.error('Error al iniciar sesión:', error)
     }
   }
 

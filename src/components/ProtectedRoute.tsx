@@ -15,8 +15,8 @@ export default function ProtectedRoute({ children, allowedRoles }: Props) {
   useEffect(() => {
     if (!user) {
       router.push('/login')
-    } else if (!allowedRoles.includes(user.role)) {
-      router.push(`/${user.role}`) // redirige a su panel correcto
+    } else if (!allowedRoles.includes(user.rol)) {
+      router.push(`/${user.rol}`) // redirige a su panel correcto
     }
   }, [user, router, allowedRoles])
 

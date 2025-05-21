@@ -26,25 +26,34 @@ export default function CajaPage() {
   const [cliente, setCliente] = useState({ dni: '', ruc: '', nombre: '' })
 
   const buscarPedido = () => {
-    const datos = localStorage.getItem(pedidoId)
-    if (datos) {
-      try {
-        const parsed = JSON.parse(datos)
-        if (Array.isArray(parsed.productos)) {
-          setPedido(parsed.productos)
-        } else {
-          alert('El formato del pedido no es válido.')
-          setPedido(null)
-        }
-      } catch {
-        alert('Error al leer el pedido.')
-        setPedido(null)
-      }
-    } else {
-      alert('Pedido no encontrado.')
-      setPedido(null)
-    }   
+  const datos = localStorage.getItem(pedidoId)
+  if (!datos) {
+    alert('Pedido no encontrado.')
+    setPedido(null)
+    return
   }
+
+  try {
+    const parsed = JSON.parse(datos)
+    if (Array.isArray(parsed.productos)) {
+      const productosConPrecioNumerico = parsed.productos.map((item: PedidoItem) => ({
+        ...item,
+        producto: {
+          ...item.producto,
+          precio: Number(item.producto.precio),
+        },
+      }))
+      setPedido(productosConPrecioNumerico)
+    } else {
+      alert('El formato del pedido no es válido.')
+      setPedido(null)
+    }
+  } catch (error) {
+    console.error('Error al parsear el pedido:', error)
+    alert('Error al leer el pedido.')
+    setPedido(null)
+  }
+}
 
   const total = pedido?.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0) || 0
 
@@ -192,8 +201,6 @@ export default function CajaPage() {
     Total: S/ {total.toFixed(2)}
   </div>
 </div>
-
-
             <button
               onClick={finalizarVenta}
               className="bg-green-600 text-white px-4 py-2 rounded"

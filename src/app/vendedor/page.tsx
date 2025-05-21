@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { fetchProductos } from '@/services/productService'
 
 interface Producto {
   id: string
@@ -54,12 +55,15 @@ export default function VendedorPage() {
 
   useEffect(() => {
     // Simular carga de productos
-    setProductos([
-      { id: '1', nombre: 'Cemento', precio: 32.5, stock: 100 },
-      { id: '2', nombre: 'Clavo', precio: 0.5, stock: 1000 },
-      { id: '3', nombre: 'Martillo', precio: 22.0, stock: 30 },
-    ])
-
+    const cargarProductos = async () => {
+      try{
+        const data = await fetchProductos()
+        setProductos(data);
+      } catch (error) {
+        console.error('Error al cargar productos:', error)
+      }
+    };
+    cargarProductos()
     // Cargar ventas del día
     const hoy = new Date().toDateString()
     const todas = Object.keys(localStorage)
@@ -104,7 +108,7 @@ export default function VendedorPage() {
   
     const venta: Venta = {
       id,
-      vendedor: user?.username || 'Desconocido',
+      vendedor: user?.nombre || 'Desconocido',
       fecha,
       productos: pedido,
       total,
