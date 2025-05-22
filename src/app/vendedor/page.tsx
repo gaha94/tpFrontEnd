@@ -140,6 +140,9 @@ export default function VendedorPage() {
           <h1 className="text-2xl font-bold">
             {mostrarNuevaVenta ? 'Nueva venta' : 'Ventas del día'}
           </h1>
+          <p className="text-sm text-gray-600 mb-2">
+            Vendedor: <span className="font-semibold">{user?.nombre}</span>
+          </p>
           <button
             onClick={() => {
               setMostrarNuevaVenta(!mostrarNuevaVenta)
@@ -229,87 +232,96 @@ export default function VendedorPage() {
         ) :  (
           <>
             {/* Sección de búsqueda */}
-            <div className="bg-white rounded shadow p-4 mb-6">
-              <h2 className="text-lg font-bold mb-3">Buscar producto</h2>
+            <div className="mb-6">
+              <label htmlFor="buscar" className="block font-bold mb-2">Buscar producto</label>
               <input
+                id="buscar"
                 type="text"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar por nombre"
                 className="border px-3 py-2 rounded w-full"
+                list="sugerencias"
               />
+              <datalist id="sugerencias">
+                {productos
+                  .filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+                  .map(p => (
+                    <option key={p.id} value={p.nombre} />
+                  ))}
+              </datalist>
+              <button
+                onClick={() => {
+                  const producto = productos.find(p =>
+                    p.nombre.toLowerCase() === busqueda.toLowerCase()
+                  )
+                  if (producto) {
+                    agregarProducto(producto)
+                    setBusqueda('')
+                  } else {
+                    alert('Producto no encontrado')
+                  }
+                }}
+                className="mt-2 bg-green-600 text-white px-4 py-2 rounded"
+              >
+                Agregar
+              </button>
             </div>
-        
-            {/* Resultados */}
-            <div className="bg-white rounded shadow p-4 mb-6">
-              <h2 className="text-lg font-bold mb-3">Resultados</h2>
-              {productos.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase())).length === 0 ? (
-                <p className="text-sm text-gray-500">No se encontraron productos.</p>
-              ) : (
-                <ul className="divide-y">
-                  {productos
-                    .filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-                    .map(producto => (
-                      <li key={producto.id} className="py-3 flex justify-between items-center">
-                        <div>
-                          <p className="font-semibold">{producto.nombre}</p>
-                          <p className="text-sm text-gray-600">S/ {producto.precio} - Stock: {producto.stock}</p>
-                        </div>
-                        <button
-                          onClick={() => agregarProducto(producto)}
-                          className="bg-green-600 text-white px-3 py-1 rounded"
-                        >
-                          Agregar
-                        </button>
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
+
         
             {/* Resumen del pedido */}
-            <div className="bg-white rounded shadow p-4 mb-6">
-              <h2 className="text-lg font-bold mb-3">Resumen del pedido</h2>
-              {pedido.length === 0 ? (
-                <p className="text-sm text-gray-500">No hay productos en el pedido.</p>
-              ) : (
-                <ul className="mb-4">
-                  {pedido.map(({ producto, cantidad }) => (
-                    <li key={producto.id} className="flex justify-between items-center mb-2">
-                      <span>{producto.nombre} - S/ {producto.precio} x {cantidad}</span>
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          min={1}
-                          max={producto.stock}
-                          value={cantidad}
-                          onChange={(e) => cambiarCantidad(producto.id, parseInt(e.target.value))}
-                          title='Cambiar cantidad'
-                          className="w-16 border px-2 rounded"
-                        />
-                        <button
-                          onClick={() => eliminarProducto(producto.id)}
-                          className="text-red-600"
-                        >
-                          Quitar
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {pedido.length > 0 && (
-                <>
-                  <p className="font-bold">Total: S/ {total.toFixed(2)}</p>
-                  <button
-                    onClick={() => setMostrarClienteModal(true)}
-                    className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
-                  >
-                    Confirmar venta
-                  </button>
-                </>
-              )}
-            </div>
+            {pedido.length > 0 && (
+  <div className="mb-6">
+    <h2 className="text-lg font-bold mb-3">Productos agregados</h2>
+    <table className="w-full text-sm border mb-3">
+      <thead>
+        <tr className="bg-gray-100">
+          <th className="border px-2 py-1">Producto</th>
+          <th className="border px-2 py-1">P. Unitario</th>
+          <th className="border px-2 py-1">Cantidad</th>
+          <th className="border px-2 py-1">Subtotal</th>
+          <th className="border px-2 py-1">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {pedido.map(({ producto, cantidad }) => (
+          <tr key={producto.id}>
+            <td className="border px-2 py-1">{producto.nombre}</td>
+            <td className="border px-2 py-1">S/ {producto.precio.toFixed(2)}</td>
+            <td className="border px-2 py-1">
+              <input
+                type="number"
+                min={1}
+                title="Cantidad"
+                max={producto.stock}
+                value={cantidad}
+                onChange={(e) => cambiarCantidad(producto.id, parseInt(e.target.value))}
+                className="w-16 border px-2 rounded"
+              />
+            </td>
+            <td className="border px-2 py-1">S/ {(producto.precio * cantidad).toFixed(2)}</td>
+            <td className="border px-2 py-1">
+              <button
+                onClick={() => eliminarProducto(producto.id)}
+                className="text-red-600"
+              >
+                Quitar
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <p className="text-right font-bold text-lg">Total: S/ {total.toFixed(2)}</p>
+    <button
+      onClick={() => setMostrarClienteModal(true)}
+      className="mt-4 bg-blue-600 text-white px-4 py-2 rounded"
+    >
+      Confirmar venta
+    </button>
+  </div>
+)}
+
           </>
         ) } 
         
