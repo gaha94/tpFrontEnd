@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 
-
 export default function LoginPage() {
   const { login } = useAuth()
   const [username, setUsername] = useState('')
@@ -16,6 +15,15 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow-md w-80">
+        {/* Logo encima del formulario */}
+        <div className="flex justify-center mb-4">
+          <img
+            src="/logo.svg"
+            alt="Logo de la empresa"
+            className="h-50 object-contain"
+          />
+        </div>
+
         <h1 className="text-xl font-bold mb-4 text-center text-black">Iniciar Sesión</h1>
         <input
           type="text"
