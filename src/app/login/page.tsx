@@ -6,16 +6,23 @@ export default function LoginPage() {
   const { login } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    login(username, password)
+    setError('') // Limpia errores anteriores
+
+    try {
+      await login(username, password)
+    } catch (error) {
+      setError('Error al iniciar sesión. Verifica tus credenciales.')
+    }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow-md w-80">
-        {/* Logo encima del formulario */}
+        <h1 className='text-xl font-bold mb-4 text-center text-black'>Iniciar Sesión</h1>
         <div className="flex justify-center mb-4">
           <img
             src="/logo.svg"
@@ -23,8 +30,11 @@ export default function LoginPage() {
             className="h-50 object-contain"
           />
         </div>
-
-        <h1 className="text-xl font-bold mb-4 text-center text-black">Iniciar Sesión</h1>
+        {error && (
+          <div className="text-red-500 text-sm mb-4">
+            {error}
+            </div>)}
+        {/* Logo encima del formulario */}
         <input
           type="text"
           placeholder="Usuario"

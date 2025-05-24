@@ -38,6 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       router.push(`/${data.user.rol}`)
     } catch (error) {
       console.error('Error al iniciar sesión:', error)
+      throw new Error('Error al iniciar sesión')
     }
   }
 
