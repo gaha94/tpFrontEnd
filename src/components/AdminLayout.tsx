@@ -15,7 +15,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navItems = [
     { label: 'Dashboard', icon: <LayoutDashboard size={20} />, href: '/admin/dashboard' },
     { label: 'Productos', icon: <Box size={20} />, href: '/admin/productos' },
-    { label: 'Usuarios', icon: <Users size={20} />, href: '/admin/roles' }
+    { label: 'Usuarios', icon: <Users size={20} />, href: '/admin/roles' },
+    { label: 'Clientes', icon: <Users size={20} />, href: '/admin/clientes' },
   ]
 
   useEffect(() => {
