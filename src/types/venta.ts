@@ -33,10 +33,10 @@ export interface Cliente {
     total: number
   }
   
-  export interface VentaPendiente {
-    id: number
-    numero_venta: string
-    nombre: string
-    telefono: string
-    total: number
-  }
+export interface VentaPendiente {
+  id: number
+  numero_venta: string
+  cliente: string
+  telefono: string
+  monto: number
+}

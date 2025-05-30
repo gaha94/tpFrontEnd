@@ -18,3 +18,6 @@ export const createCliente = async (cliente: Cliente): Promise<Cliente> => {
   const res = await api.post<Cliente>('/clientes', cliente);
   return res.data;
 };
+export const updateCliente = async (id: number, cliente: Cliente): Promise<void> => {
+  await api.put(`/clientes/${id}`, cliente);
+};

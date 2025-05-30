@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import { getVentasPendientes } from '@/services/ventaService'
+import { getVentasPendientes, cancelarVentaService } from '@/services/ventaService'
 import { VentaPendiente } from '@/types/venta'
 
 interface Producto {
@@ -58,6 +58,20 @@ export default function CajaPage() {
     setPedido(null)
   }
 }
+
+const cancelarVenta = async (ventaId: number) => {
+  if (!confirm('¿Estás seguro de cancelar esta venta?')) return
+
+  try {
+    await cancelarVentaService(ventaId) // <-- lo creamos a continuación
+    setVentasPendientes((prev) => prev.filter(v => v.id !== ventaId))
+    alert('Venta cancelada correctamente')
+  } catch (error) {
+    console.error('Error al cancelar venta:', error)
+    alert('Error al cancelar la venta')
+  }
+}
+
 
 useEffect(() => {
   const cargarPendientes = async () => {
@@ -117,8 +131,8 @@ useEffect(() => {
         {ventasPendientes.map((venta) => (
           <tr key={venta.id}>
             <td className="border px-2 py-1">{venta.numero_venta}</td>
-            <td className="border px-2 py-1">{venta.nombre}</td>
-            <td className="border px-2 py-1">S/ {venta.total.toFixed(2)}</td>
+            <td className="border px-2 py-1">{venta.cliente}</td>
+            <td className="border px-2 py-1">S/ {venta.monto.toFixed(2)}</td>
             <td className="border px-2 py-1">{venta.telefono}</td>
             <td className="border px-2 py-1">
               <button
@@ -127,6 +141,13 @@ useEffect(() => {
               >
                 Seleccionar
               </button>
+              <button
+                onClick={() => cancelarVenta(venta.id)}
+                  className="bg-red-600 text-white px-3 py-1 rounded ml-2"
+                >
+                Cancelar
+              </button>
+
             </td>
           </tr>
         ))}
