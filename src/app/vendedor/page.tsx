@@ -2,10 +2,11 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import { fetchProductos } from '@/services/productService'
+import { fetchProductos  } from '@/services/productService'
+import { createVentaService, getVentasDelVendedorHoy } from '@/services/ventaService'
 
 interface Producto {
-  id: string
+  id: number
   nombre: string
   precio: number
   stock: number
@@ -36,6 +37,7 @@ interface Venta {
 
 export default function VendedorPage() {
   const { logout, user } = useAuth()
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
   const [ventasHoy, setVentasHoy] = useState<Venta[]>([])
   const [mostrarNuevaVenta, setMostrarNuevaVenta] = useState(false)
   const [busqueda, setBusqueda] = useState('')
@@ -51,38 +53,33 @@ export default function VendedorPage() {
     ruc: '',
     razonSocial: ''
   })
+  
 
 
-  useEffect(() => {
-    // Simular carga de productos
-    const cargarProductos = async () => {
-      try{
-        const data = await fetchProductos()
-        setProductos(data);
-      } catch (error) {
-        console.error('Error al cargar productos:', error)
-      }
-    };
-    cargarProductos()
-    // Cargar ventas del día
-    const hoy = new Date().toDateString()
-    const todas = Object.keys(localStorage)
-      .map((key) => {
-        try {
-          const venta = JSON.parse(localStorage.getItem(key) || '')
-          return venta
-        } catch {
-          return null
-        }
-      })
-      .filter((venta): venta is Venta => {
-        if (!venta?.fecha) return false
-        const fechaVenta = new Date(venta.fecha).toDateString()
-        return fechaVenta === hoy
-      })      
+useEffect(() => {
+  const cargarProductos = async () => {
+    try {
+      const data = await fetchProductos()
+      setProductos(data)
+    } catch (error) {
+      console.error('Error al cargar productos:', error)
+    }
+  }
+  cargarProductos()
+}, [])
 
-    setVentasHoy(todas)
-  }, [])
+useEffect(() => {
+  const cargarVentas = async () => {
+    if (!token) return
+    try {
+      const data = await getVentasDelVendedorHoy(token)
+      setVentasHoy(data)
+    } catch (error) {
+      console.error('Error al cargar ventas del vendedor:', error)
+    }
+  }
+  cargarVentas()
+}, [token])
 
   const agregarProducto = (producto: Producto) => {
     const existe = pedido.find((p) => p.producto.id === producto.id)
@@ -91,47 +88,60 @@ export default function VendedorPage() {
     }
   }
 
-  const cambiarCantidad = (id: string, nuevaCantidad: number) => {
+  const cambiarCantidad = (id: number, nuevaCantidad: number) => {
     setPedido(pedido.map(item =>
-      item.producto.id === id ? { ...item, cantidad: nuevaCantidad } : item
+      item.producto.id === Number(id) ? { ...item, cantidad: nuevaCantidad } : item
     ))
   }
 
-  const eliminarProducto = (id: string) => {
-    setPedido(pedido.filter(item => item.producto.id !== id))
+  const eliminarProducto = (id: number) => {
+    setPedido(pedido.filter(item => item.producto.id !== Number(id)))
   }
 
-  const guardarPedido = () => {
-    const id = ventaEditandoId || Date.now().toString()  // ✅ Usa el ID original si existe
-    const fecha = new Date().toISOString()
-    const total = pedido.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0)
+const guardarPedido = async () => {
+  if (!user) throw new Error('Usuario no autenticado')
+  const id = ventaEditandoId || Date.now().toString()
+  const fecha = new Date().toISOString()
+  const total = pedido.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0)
 
-    const venta: Venta = {
-      id,
-      vendedor: user?.nombre || 'Desconocido',
-      fecha,
-      productos: pedido,
-      total,
+  const venta: Venta = {
+    id,
+    vendedor: user.nombre,
+    fecha,
+    productos: pedido,
+    total,
+    tipoComprobante,
+    cliente,
+    estado: 'pendiente'
+  }
+
+    await createVentaService({
+      vendedorId: String(user.id),
       tipoComprobante,
       cliente,
+      productos: pedido.map(item => ({
+        id_producto: item.producto.id,
+        cantidad: item.cantidad,
+        precio_unitario: item.producto.precio,
+        subtotal: item.cantidad * item.producto.precio
+      })),
       estado: 'pendiente'
-    }
+    }, token!)
 
-    // 🔁 Sobrescribe en localStorage
-    localStorage.setItem(id, JSON.stringify(venta))
 
-    // 🔄 Reemplaza en ventasHoy
-    setVentasHoy((prev) => {
-      const actualizadas = prev.filter(v => v.id !== id)
-      return [...actualizadas, venta]
-    })
+  // Actualiza ventas locales
+  setVentasHoy((prev) => {
+    const actualizadas = prev.filter(v => v.id !== id)
+    return [...actualizadas, venta]
+  })
 
-    alert(`Venta ${ventaEditandoId ? 'actualizada' : 'registrada'}. Número: ${id}`)
-    setPedido([])
-    setCliente({ nombres: '', dni: '', direccion: '', ruc: '', razonSocial: '' })
-    setMostrarNuevaVenta(false)
-    setVentaEditandoId(null) // ✅ Reinicia edición
-  }
+  alert(`Venta ${ventaEditandoId ? 'actualizada' : 'registrada'}. Número: ${id}`)
+  setPedido([])
+  setCliente({ nombres: '', dni: '', direccion: '', ruc: '', razonSocial: '' })
+  setMostrarNuevaVenta(false)
+  setVentaEditandoId(null)
+}
+
 
   const total = pedido.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0)
 
@@ -230,7 +240,6 @@ export default function VendedorPage() {
                             <button
                               onClick={() => {
                                 if (confirm('¿Estás seguro de eliminar esta venta?')) {
-                                  localStorage.removeItem(venta.id)
                                   setVentasHoy((prev) => prev.filter(v => v.id !== venta.id))
                                 }
                               }}
@@ -388,7 +397,7 @@ export default function VendedorPage() {
                 type="text"
                 placeholder="DNI"
                 className="border rounded w-full px-3 py-2 mb-2"
-                value={cliente.dni}
+                value={cliente.dni?.toString() || ''}
                 onChange={(e) => setCliente({ ...cliente, dni: e.target.value })}
               />
               <input

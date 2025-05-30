@@ -1,5 +1,5 @@
 'use client'
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 
@@ -19,7 +19,8 @@ interface LoginResponse {
 
 interface AuthContextType {
   user: User | null
-  login: (correo: string, password: string) => void
+  token: string | null
+  login: (correo: string, password: string) => Promise<void>
   logout: () => void
 }
 
@@ -27,13 +28,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
+  const [token, setToken] = useState<string | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem('token')
+    if (savedToken) {
+      setToken(savedToken)
+    }
+  }, [])
 
   const login = async (correo: string, password: string) => {
     try {
       const { data }: { data: LoginResponse } = await api.post('/login', { correo, password })
 
       localStorage.setItem('token', data.token)
+      setToken(data.token)
       setUser(data.user)
       router.push(`/${data.user.rol}`)
     } catch (error) {
@@ -44,12 +54,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = () => {
     localStorage.removeItem('token')
+    setToken(null)
     setUser(null)
     router.push('/login')
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, token, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
