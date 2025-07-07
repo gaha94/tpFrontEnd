@@ -11,9 +11,8 @@ export interface Producto {
   id: number
   nombre: string
   precio: number
-  stock: number
-  categoria: string
-  marca: string
+  stock?: number // opcional si no lo usas
+  unidad: string // nuevo campo
 }
 
 export interface PedidoItem {

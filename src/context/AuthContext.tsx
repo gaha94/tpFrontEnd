@@ -3,13 +3,9 @@ import { createContext, useContext, useState, ReactNode, useEffect } from 'react
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 
-type Role = 'admin' | 'caja' | 'vendedor'
-
 interface User {
   id: number
   nombre: string
-  rol: Role
-  correo: string
 }
 
 interface LoginResponse {
@@ -20,7 +16,7 @@ interface LoginResponse {
 interface AuthContextType {
   user: User | null
   token: string | null
-  login: (correo: string, password: string) => Promise<void>
+  login: (usuarioPlano: string, password: string, rememberMe: boolean) => Promise<void>
   logout: () => void
 }
 
@@ -32,28 +28,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter()
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('token')
-    if (savedToken) {
+    const storage = localStorage.getItem('token') ? localStorage : sessionStorage
+    const savedToken = storage.getItem('token')
+    const savedUser = storage.getItem('user')
+
+    if (savedToken && savedUser) {
       setToken(savedToken)
+      setUser(JSON.parse(savedUser))
     }
   }, [])
 
-  const login = async (correo: string, password: string) => {
-    try {
-      const { data }: { data: LoginResponse } = await api.post('/login', { correo, password })
+const login = async (usuarioPlano: string, password: string, rememberMe: boolean) => {
+  try {
+    const { data }: { data: LoginResponse } = await api.post('/login', {
+      usuarioPlano,
+      password
+    })
 
-      localStorage.setItem('token', data.token)
-      setToken(data.token)
-      setUser(data.user)
-      router.push(`/${data.user.rol}`)
-    } catch (error) {
-      console.error('Error al iniciar sesión:', error)
-      throw new Error('Error al iniciar sesión')
-    }
+    const storage = rememberMe ? localStorage : sessionStorage
+    storage.setItem('token', data.token)
+    storage.setItem('user', JSON.stringify(data.user))
+
+    setToken(data.token)
+    setUser(data.user)
+
+    // Redirigir a /vendedor después del login
+    router.push('/vendedor/ventas-dia')
+  } catch (error) {
+    console.error('Error al iniciar sesión:', error)
+    throw new Error('Error al iniciar sesión')
   }
+}
+
 
   const logout = () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    sessionStorage.removeItem('token')
+    sessionStorage.removeItem('user')
     setToken(null)
     setUser(null)
     router.push('/login')
