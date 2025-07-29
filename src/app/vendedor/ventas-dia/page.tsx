@@ -11,12 +11,13 @@ import { buscarClientesPorNombre, ClienteBuscado } from '@/services/clienteServi
 interface Producto {
   id: number
   nombre: string
-  precio: number
-  stock?: number 
-  unidad: string 
+  unidad: string
+  stock?: number
+  precio: number // precio actualmente seleccionado
+  precio1: number
+  precio2: number
+  precio3: number
 }
-
-
 interface PedidoItem {
   producto: Producto
   cantidad: number
@@ -132,15 +133,15 @@ const handleGuardarNuevoCliente = async () => {
       direccion: '',
       telefono: '',
       correo: '',  nestrella: 1,
-  cestrella: '',
-  lat: '',
-  long: '',
-    })
-  } catch (err) {
-    console.error('Error al guardar cliente:', err)
-    alert('No se pudo registrar el cliente.')
-  }
-}
+      cestrella: '',
+      lat: '',
+      long: '',
+        })
+      } catch (err) {
+        console.error('Error al guardar cliente:', err)
+        alert('No se pudo registrar el cliente.')
+      }
+    }
 
 
 const seleccionarCliente = (cliente: ClienteBuscado) => {
@@ -167,24 +168,29 @@ const seleccionarCliente = (cliente: ClienteBuscado) => {
 useEffect(() => {
   const cargarProductos = async () => {
     try {
-      console.log('[DEBUG] Buscando token...')
-      if (!token) {
-        console.warn('[DEBUG] Token no encontrado, no se cargan productos.')
-        return
-      }
+      if (!token) return
 
       console.log('[DEBUG] Token obtenido:', token)
       const data = await fetchProductos(token)
 
-      console.log('[DEBUG] Productos cargados:', data)
-      setProductos(data)
+      // Agregar propiedad 'precio' inicial y asegurar los nombres
+      const productosConPrecios = data.map((prod: any) => ({
+        ...prod,
+        precio1: prod.precio1,
+        precio2: prod.precio2,
+        precio3: prod.precio3,
+        precio: prod.precio1 // Precio por defecto
+      }))
+
+      console.log('[DEBUG] Productos mapeados:', productosConPrecios)
+      setProductos(productosConPrecios)
     } catch (error) {
       console.error('[ERROR] Error al cargar productos:', error)
     }
   }
-
   cargarProductos()
 }, [token])
+
 
 
 /* useEffect(() => {
@@ -210,15 +216,31 @@ useEffect(() => {
   const agregarProducto = (producto: Producto) => {
     const existe = pedido.find((p) => p.producto.id === producto.id)
     if (!existe) {
-      setPedido([...pedido, { producto, cantidad: 1 }])
+      const productoConPrecio = {
+        ...producto,
+        precio: producto.precio1, // valor inicial
+      }
+      setPedido([...pedido, { producto: productoConPrecio, cantidad: 1 }])
     }
   }
+
 
   const cambiarCantidad = (id: number, nuevaCantidad: number) => {
     setPedido(pedido.map(item =>
       item.producto.id === Number(id) ? { ...item, cantidad: nuevaCantidad } : item
     ))
   }
+
+  const cambiarPrecio = (productoId: number, nuevoPrecio: number) => {
+    setPedido(prev =>
+      prev.map(item =>
+        item.producto.id === productoId
+          ? { ...item, producto: { ...item.producto, precio: nuevoPrecio } }
+          : item
+      )
+    )
+  }
+
 
   const eliminarProducto = (id: number) => {
     setPedido(pedido.filter(item => item.producto.id !== Number(id)))
@@ -346,9 +368,9 @@ const guardarPedido = async () => {
                           <tr className="bg-gray-100">
                             <th className="border px-2 py-1 text-xs">Producto</th>
                             <th className="border px-2 py-1">Unidad</th> {/* Nueva columna */}
-                            <th className="border px-2 py-1">P. Unitario</th>
                             <th className="border px-2 py-1">Cantidad</th>
-                            <th className="border px-2 py-1">Subtotal</th>
+                            <th className="border px-2 py-1">P. Unit</th>
+                            <th className="border px-2 py-1">Total</th>
                             <th className="border px-2 py-1">Acción</th>
                           </tr>
                         </thead>
@@ -357,7 +379,7 @@ const guardarPedido = async () => {
                             <tr key={producto.id}>
                               <td className="border px-2 py-1 text-xs break-words">{producto.nombre}</td>
                               <td className="border px-2 py-1">{producto.unidad || '—'}</td>
-                              <td className="border px-2 py-1">S/ {producto.precio.toFixed(2)}</td>
+
                               <td className="border px-2 py-1">
                                 <input
                                   type="number"
@@ -369,7 +391,21 @@ const guardarPedido = async () => {
                                   className="w-16 border px-2 rounded"
                                 />
                               </td>
-                              <td className="border px-2 py-1">S/ {(producto.precio * cantidad).toFixed(2)}</td>
+                              <td className="border px-2 py-1">
+                                <select
+                                  value={producto.precio}
+                                  title='Selecciona un precio'
+                                  onChange={(e) => cambiarPrecio(producto.id, parseFloat(e.target.value))}
+                                  className="border rounded px-2 py-1 text-sm"
+                                >
+                                  <option value={producto.precio1}>S/ {producto.precio1.toFixed(2)} (P1)</option>
+                                  <option value={producto.precio2}>S/ {producto.precio2.toFixed(2)} (P2)</option>
+                                  <option value={producto.precio3}>S/ {producto.precio3.toFixed(2)} (P3)</option>
+                                </select>
+                              </td>
+                              <td className="border px-2 py-1">
+                                S/ {(producto.precio * cantidad).toFixed(2)}
+                              </td>
                               <td className="border px-2 py-1">
                                 <button
                                   onClick={() => eliminarProducto(producto.id)}
@@ -521,7 +557,6 @@ const guardarPedido = async () => {
             </>
           )}
         </div>
-
               <div className="flex justify-end gap-3 mt-4">
                 <button
                   onClick={() => {
@@ -554,129 +589,126 @@ const guardarPedido = async () => {
             </div>
           </div>
         )}
-{mostrarNuevoClienteModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-    <div className="bg-white p-6 rounded shadow w-[90%] max-w-lg">
-      <h2 className="text-xl font-bold mb-4">Nuevo Cliente</h2>
+        {mostrarNuevoClienteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded shadow w-[90%] max-w-lg">
+              <h2 className="text-xl font-bold mb-4">Nuevo Cliente</h2>
 
-      <div className="grid grid-cols-1 gap-3 mb-4">
-        <select
-        title='Selecciona el tipo de documento'
-          value={nuevoCliente.tipo_documento}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, tipo_documento: e.target.value })}
-          className="border px-3 py-2 rounded w-full"
-        >
-          <option value="">Tipo de documento</option>
-          <option value="RUC">RUC</option>
-          <option value="DNI">DNI</option>
-        </select>
-        <input
-          type="text"
-          placeholder="Documento"
-          value={nuevoCliente.documento}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, documento: e.target.value })}
-          className="border px-3 py-2 rounded w-full"
-        />
-        <input
-          type="text"
-          placeholder="Nombre / Razón Social"
-          value={nuevoCliente.nombre}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })}
-          className="border px-3 py-2 rounded w-full"
-        />
-        <input
-          type="text"
-          placeholder="Dirección"
-          value={nuevoCliente.direccion}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, direccion: e.target.value })}
-          className="border px-3 py-2 rounded w-full"
-        />
-        <input
-          type="text"
-          placeholder="Teléfono"
-          value={nuevoCliente.telefono}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })}
-          className="border px-3 py-2 rounded w-full"
-        />
-        <input
-          type="email"
-          placeholder="Correo electrónico"
-          value={nuevoCliente.correo}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, correo: e.target.value })}
-          className="border px-3 py-2 rounded w-full"
-        />
+              <div className="grid grid-cols-1 gap-3 mb-4">
+                <select
+                title='Selecciona el tipo de documento'
+                  value={nuevoCliente.tipo_documento}
+                  onChange={(e) => setNuevoCliente({ ...nuevoCliente, tipo_documento: e.target.value })}
+                  className="border px-3 py-2 rounded w-full"
+                >
+                  <option value="">Tipo de documento</option>
+                  <option value="RUC">RUC</option>
+                  <option value="DNI">DNI</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Documento"
+                  value={nuevoCliente.documento}
+                  onChange={(e) => setNuevoCliente({ ...nuevoCliente, documento: e.target.value })}
+                  className="border px-3 py-2 rounded w-full"
+                />
+                <input
+                  type="text"
+                  placeholder="Nombre / Razón Social"
+                  value={nuevoCliente.nombre}
+                  onChange={(e) => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })}
+                  className="border px-3 py-2 rounded w-full"
+                />
+                <input
+                  type="text"
+                  placeholder="Dirección"
+                  value={nuevoCliente.direccion}
+                  onChange={(e) => setNuevoCliente({ ...nuevoCliente, direccion: e.target.value })}
+                  className="border px-3 py-2 rounded w-full"
+                />
+                <input
+                  type="text"
+                  placeholder="Teléfono"
+                  value={nuevoCliente.telefono}
+                  onChange={(e) => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })}
+                  className="border px-3 py-2 rounded w-full"
+                />
+                <input
+                  type="email"
+                  placeholder="Correo electrónico"
+                  value={nuevoCliente.correo}
+                  onChange={(e) => setNuevoCliente({ ...nuevoCliente, correo: e.target.value })}
+                  className="border px-3 py-2 rounded w-full"
+                />
 
-        {/* ⭐ Estrellas */}
-        <label className="block font-medium">Puntuación:</label>
-        <div className="flex items-center space-x-1">
-          {[1, 2, 3, 4, 5].map((estrella) => (
-            <button
-              type="button"
-              key={estrella}
-              onClick={() => setNuevoCliente({ ...nuevoCliente, nestrella: estrella })}
-              className={`text-2xl ${estrella <= nuevoCliente.nestrella ? 'text-yellow-400' : 'text-gray-300'}`}
-            >
-              ★
-            </button>
-          ))}
-        </div>
+                {/* ⭐ Estrellas */}
+                <label className="block font-medium">Puntuación:</label>
+                <div className="flex items-center space-x-1">
+                  {[1, 2, 3, 4, 5].map((estrella) => (
+                    <button
+                      type="button"
+                      key={estrella}
+                      onClick={() => setNuevoCliente({ ...nuevoCliente, nestrella: estrella })}
+                      className={`text-2xl ${estrella <= nuevoCliente.nestrella ? 'text-yellow-400' : 'text-gray-300'}`}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
 
-        {/* 📝 Comentario */}
-        <textarea
-          placeholder="Comentario sobre el cliente (opcional)"
-          value={nuevoCliente.cestrella}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, cestrella: e.target.value })}
-          className="border px-3 py-2 rounded w-full mt-2"
-        />
+                {/* 📝 Comentario */}
+                <textarea
+                  placeholder="Comentario sobre el cliente (opcional)"
+                  value={nuevoCliente.cestrella}
+                  onChange={(e) => setNuevoCliente({ ...nuevoCliente, cestrella: e.target.value })}
+                  className="border px-3 py-2 rounded w-full mt-2"
+                />
 
-        {/* 📍 Ubicación */}
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="text"
-            placeholder="Latitud"
-            value={nuevoCliente.lat}
-            onChange={(e) => setNuevoCliente({ ...nuevoCliente, lat: e.target.value })}
-            className="border px-3 py-2 rounded w-full"
-          />
-          <input
-            type="text"
-            placeholder="Longitud"
-            value={nuevoCliente.long}
-            onChange={(e) => setNuevoCliente({ ...nuevoCliente, long: e.target.value })}
-            className="border px-3 py-2 rounded w-full"
-          />
-        </div>
-        <a
-          href="https://www.google.com/maps"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 text-sm underline"
-        >
-          ¿No sabes la latitud/longitud? Búscalas aquí en Google Maps
-        </a>
+                {/* 📍 Ubicación */}
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Latitud"
+                    value={nuevoCliente.lat}
+                    onChange={(e) => setNuevoCliente({ ...nuevoCliente, lat: e.target.value })}
+                    className="border px-3 py-2 rounded w-full"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Longitud"
+                    value={nuevoCliente.long}
+                    onChange={(e) => setNuevoCliente({ ...nuevoCliente, long: e.target.value })}
+                    className="border px-3 py-2 rounded w-full"
+                  />
+                </div>
+                <a
+                  href="https://www.google.com/maps"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 text-sm underline"
+                >
+                  ¿No sabes la latitud/longitud? Búscalas aquí en Google Maps
+                </a>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setMostrarNuevoClienteModal(false)}
+                  className="border px-4 py-2 rounded hover:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleGuardarNuevoCliente}
+                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-
-      <div className="flex justify-end gap-3">
-        <button
-          onClick={() => setMostrarNuevoClienteModal(false)}
-          className="border px-4 py-2 rounded hover:bg-gray-200"
-        >
-          Cancelar
-        </button>
-        <button
-          onClick={handleGuardarNuevoCliente}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-        >
-          Guardar
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-      </div>
-
-
     </ProtectedRoute>
   )
 }
