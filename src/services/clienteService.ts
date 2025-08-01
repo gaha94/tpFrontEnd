@@ -1,38 +1,27 @@
 // services/clienteService.ts
 import api from '@/lib/api'
-import { Cliente } from '@/types/cliente'
-
-export interface ClienteBuscado {
-  ccodclie: string
-  crucclie: string
-  cnomclie: string
-  cdirclie: string
-  nestrella: number
-  cestrella: string
-  latitud: number | null
-  longitud: number | null
-}
+import { ClienteBuscado } from '@/types/cliente'
 
 // Obtener todos los clientes
-export const getClientes = async (): Promise<Cliente[]> => {
-  const res = await api.get<Cliente[]>('/clientes')
+export const getClientes = async (): Promise<ClienteBuscado[]> => {
+  const res = await api.get<ClienteBuscado[]>('/clientes')
   return res.data
 }
 
 // Obtener cliente por ID
-export const getClienteById = async (id: number): Promise<Cliente> => {
-  const res = await api.get<Cliente>(`/clientes/${id}`)
+export const getClienteById = async (id: number): Promise<ClienteBuscado> => {
+  const res = await api.get<ClienteBuscado>(`/clientes/${id}`)
   return res.data
 }
 
 // Crear nuevo cliente
-export const createCliente = async (cliente: Cliente): Promise<Cliente> => {
-  const res = await api.post<Cliente>('/clientes', cliente)
+export const createCliente = async (cliente: ClienteBuscado): Promise<ClienteBuscado> => {
+  const res = await api.post<ClienteBuscado>('/clientes', cliente)
   return res.data
 }
 
 // Actualizar cliente
-export const updateCliente = async (id: number, cliente: Cliente): Promise<void> => {
+export const updateCliente = async (id: number, cliente: ClienteBuscado): Promise<void> => {
   await api.put(`/clientes/${id}`, cliente)
 }
 

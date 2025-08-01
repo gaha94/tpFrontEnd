@@ -1,9 +1,10 @@
-export interface Cliente {
-  id: number;
-  tipo_documento: 'DNI' | 'RUC';
-  documento: string;
-  nombre: string;
-  direccion: string;
-  telefono: string;
-  correo: string;
+export interface ClienteBuscado {
+  ccodclie: string // 👈 este es tu ID real
+  crucclie: string
+  cnomclie: string
+  cdirclie: string
+  nestrella: number
+  cestrella: string
+  latitud?: string
+  longitud?: string
 }
