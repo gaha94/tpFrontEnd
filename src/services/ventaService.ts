@@ -4,24 +4,27 @@ import axios from 'axios';
 
 export type TipoPrecio = "1" | "2" | "3"
 
-export interface CrearVentaPayload {
-  clienteId: number
-  serieId: string
-  detalle: {
-    productoId: number
-    ncanprod: number
-    tipoPrecio: TipoPrecio
-  }[]
-}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 // 🔄 Crear una nueva venta
-export const createVentaService = async (venta: {
-  clienteId: string,
-  serie: { ctipdocu: string, cserdocu: string },
-  detalle: { productoId: string, tipoPrecio: string, ncanprod: number }[]
-}, token: string) => {
+export type CrearVentaPayload =
+  | {
+      clienteId: string, // para factura
+      serie: { ctipdocu: string, cserdocu: string },
+      detalle: { productoId: string, tipoPrecio: string, ncanprod: number }[]
+    }
+  | {
+      cliente: { nombres: string, dni: string, direccion: string }, // para boleta
+      serie: { ctipdocu: string, cserdocu: string },
+      detalle: { productoId: string, tipoPrecio: string, ncanprod: number }[]
+    }
+
+// Cambia la firma de tu función:
+export const createVentaService = async (
+  venta: CrearVentaPayload,
+  token: string
+) => {
   const res = await axios.post(
     `${API_URL}/ventas/registro`,
     venta,
@@ -33,6 +36,7 @@ export const createVentaService = async (venta: {
   );
   return res.data;
 };
+
 
 // 🕒 Obtener ventas pendientes (para módulo caja)
 export const getVentasPendientes = async (): Promise<VentaPendiente[]> => {

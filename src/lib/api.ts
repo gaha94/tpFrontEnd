@@ -2,8 +2,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  // baseURL: 'http://localhost:4001/api', // ✅ IP pública del servidor
-  baseURL: 'http://163.123.180.94:4001/api', // ✅ IP pública del servidor
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
 })
 
 // ✅ Interceptor para agregar el token automáticamente

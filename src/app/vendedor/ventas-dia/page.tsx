@@ -9,12 +9,24 @@ import { getComprobantes } from '@/services/comprobanteService'
 import { buscarClientesPorNombre } from '@/services/clienteService'
 import { ClienteBuscado } from '@/types/cliente'
 
+type VentaDia = {
+  id: string
+  fecha: string
+  total: number
+  tipoComprobante?: string
+  cliente?: {
+    nombres?: string
+    razonSocial?: string
+  }
+}
 
 interface Producto {
   id: number
   nombre: string
   unidad: string
   stock?: number
+  marca?: string
+  detalle?: string
   precio: number // precio actualmente seleccionado
   precio1: number
   precio2: number
@@ -47,7 +59,7 @@ export default function VendedorPage() {
   const token = typeof window !== 'undefined'
   ? localStorage.getItem('token') || sessionStorage.getItem('token')
   : null
-  const [ventasHoy, setVentasHoy] = useState<Venta[]>([])
+  const [ventasHoy, setVentasHoy] = useState<VentaDia[]>([])
   const [mostrarNuevaVenta, setMostrarNuevaVenta] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [productos, setProductos] = useState<Producto[]>([])
@@ -69,6 +81,8 @@ export default function VendedorPage() {
   const [comprobantes, setComprobantes] = useState<{ listado: string; ctipdocu: string; cserdocu: string }[]>([])
   const [serieSeleccionada, setSerieSeleccionada] = useState<{ ctipdocu: string, cserdocu: string } | null>(null)
   const predictorRef = useRef<HTMLDivElement>(null)
+  const [loadingVentas, setLoadingVentas] = useState(false)
+  const [errorVentas, setErrorVentas] = useState<string | null>(null)
 
   const [mostrarNuevoClienteModal, setMostrarNuevoClienteModal] = useState(false)
   const [nuevoCliente, setNuevoCliente] = useState({
@@ -149,11 +163,22 @@ export default function VendedorPage() {
       }
 
 
-  const seleccionarCliente = (cliente: ClienteBuscado) => {
-    setClienteSeleccionado(cliente)
-    setBusquedaCliente(cliente.cnomclie)
-    setSugerencias([])
-  }
+const seleccionarCliente = (clienteSugerido: ClienteBuscado) => {
+  setClienteSeleccionado(clienteSugerido)
+  setBusquedaCliente(clienteSugerido.cnomclie)
+  setSugerencias([])
+
+  // AÑADE ESTO: Copia los datos al objeto cliente
+setCliente({
+  nombres: clienteSugerido.cnomclie || '',
+  dni: clienteSugerido.crucclie || '',
+  direccion: clienteSugerido.cdirclie || '',
+  ruc: clienteSugerido.crucclie || '',           // Usa el RUC si lo tienes, o pon ''
+  razonSocial: clienteSugerido.cnomclie || ''    // Usa la razón social si lo tienes, o pon ''
+})
+
+}
+
 
     useEffect(() => {
       const cargarComprobantes = async () => {
@@ -184,7 +209,8 @@ export default function VendedorPage() {
           precio1: prod.precio1,
           precio2: prod.precio2,
           precio3: prod.precio3,
-          precio: prod.precio1 // Precio por defecto
+          precio: prod.precio1, // Precio por defecto
+          detalle: prod.detalle
         }))
 
         console.log('[DEBUG] Productos mapeados:', productosConPrecios)
@@ -196,20 +222,34 @@ export default function VendedorPage() {
     cargarProductos()
   }, [token])
 
-
-
-  /* useEffect(() => {
-    const cargarVentas = async () => {
-      if (!token) return
-      try {
-        const data = await getVentasDelVendedorHoy(token)
-        setVentasHoy(data)
-      } catch (error) {
-        console.error('Error al cargar ventas del vendedor:', error)
-      }
+  useEffect(() => {
+  const cargarVentas = async () => {
+    if (!token) return
+    try {
+      setLoadingVentas(true)
+      setErrorVentas(null)
+      const data = await getVentasDelVendedorHoy(token)
+      // ANTES: setVentasHoy(data)
+      const adaptadas: VentaDia[] = data.map((v: any) => ({
+        id: v.id,
+        fecha: v.fecha,
+        total: v.total,
+        tipoComprobante: v.tipoComprobante,
+        cliente: {
+          nombres: v.cliente?.nombres,
+          razonSocial: v.cliente?.razonSocial,
+        }
+      }))
+      setVentasHoy(adaptadas)
+    } catch (error: any) {
+      console.error('Error al cargar ventas del vendedor:', error)
+      setErrorVentas(error?.message || 'No se pudieron cargar las ventas de hoy')
+    } finally {
+      setLoadingVentas(false)
     }
-    cargarVentas()
-  }, [token]) */
+  }
+  cargarVentas()
+}, [token])
 
   useEffect(() => {
     setBusquedaCliente('')
@@ -219,6 +259,10 @@ export default function VendedorPage() {
 
 
   const agregarProducto = (producto: Producto) => {
+    if (producto.stock === 0) {
+    alert('Stock insuficiente');
+    return;
+  }
     const existe = pedido.find((p) => p.producto.id === producto.id)
     if (!existe) {
       const productoConPrecio = {
@@ -325,7 +369,14 @@ await createVentaService({
   // Actualiza ventas locales
   setVentasHoy((prev) => {
     const actualizadas = prev.filter(v => v.id !== id)
-    return [...actualizadas, venta]
+    const ventaDia: VentaDia = {
+      id,
+      fecha,
+      total,
+      tipoComprobante,
+      cliente: { nombres: cliente.nombres, razonSocial: cliente.razonSocial }
+    }
+    return [...actualizadas, ventaDia]
   })
 
   alert(`Venta ${ventaEditandoId ? 'actualizada' : 'registrada'}. Número: ${id}`)
@@ -360,11 +411,101 @@ await createVentaService({
         </div>
 
         {!mostrarNuevaVenta ? (
-                  <div>
-                    <p>Vista de ventas desactivada temporalmente.</p>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">Ventas del día</h2>
+              <button
+                onClick={async () => {
+                  if (!token) return
+                  try {
+                    setLoadingVentas(true)
+                    setErrorVentas(null)
+                    const data = await getVentasDelVendedorHoy(token)
+                    const adaptadas = data.map((v: any) => ({
+                      id: v.id,
+                      fecha: v.fecha,
+                      total: v.total,
+                      tipoComprobante: v.tipoComprobante,
+                      cliente: {
+                        nombres: v.cliente?.nombres,
+                        razonSocial: v.cliente?.razonSocial,
+                      },
+                    }))
+                    setVentasHoy(adaptadas)
+                  } catch (e: any) {
+                    setErrorVentas(e?.message || 'No se pudieron cargar las ventas de hoy')
+                  } finally {
+                    setLoadingVentas(false)
+                  }
+                }}
+                className="bg-gray-100 border px-3 py-1 rounded hover:bg-gray-200 text-sm"
+                title="Actualizar"
+              >
+                ↻ Actualizar
+              </button>
+            </div>
+
+            {loadingVentas && (
+              <div className="p-3 rounded bg-white shadow text-sm">Cargando ventas de hoy…</div>
+            )}
+
+            {errorVentas && (
+              <div className="p-3 rounded bg-red-50 border border-red-200 text-red-700 text-sm">
+                {errorVentas}
+              </div>
+            )}
+
+            {!loadingVentas && !errorVentas && (
+              <>
+                {/* Resumen rápido */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="border rounded p-3 bg-white shadow text-sm">
+                    <div className="text-gray-600">Comprobantes</div>
+                    <div className="text-xl font-bold">{ventasHoy.length}</div>
                   </div>
+                  <div className="border rounded p-3 bg-white shadow text-sm col-span-1 sm:col-span-2">
+                    <div className="text-gray-600">Total del día</div>
+                    <div className="text-xl font-bold">
+                      S/ {ventasHoy.reduce((acc, v) => acc + (v.total || 0), 0).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                {ventasHoy.length === 0 ? (
+                  <p className="text-sm text-gray-600">No hay ventas registradas hoy.</p>
                 ) : (
-                  <>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm border bg-white shadow rounded">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="border px-2 py-1">Fecha</th>
+                          <th className="border px-2 py-1">Comprobante</th>
+                          <th className="border px-2 py-1">Cliente</th>
+                          <th className="border px-2 py-1 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ventasHoy.map((v) => (
+                          <tr key={v.id} className="hover:bg-gray-50">
+                            <td className="border px-2 py-1">
+                              {new Date(v.fecha).toLocaleDateString('es-PE')}
+                            </td>
+                            <td className="border px-2 py-1">{v.tipoComprobante ?? '—'}</td>
+                            <td className="border px-2 py-1">
+                              {v.cliente?.razonSocial || v.cliente?.nombres || '—'}
+                            </td>
+                            <td className="border px-2 py-1 text-right">S/ {v.total.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <>
                     {/* Sección de búsqueda */}
                     <div 
                     ref={predictorRef}
@@ -395,42 +536,58 @@ await createVentaService({
                       </div>
                       {/*Lista de sugerencias */}
                       <ul className="max-h-60 overflow-y-auto">
-                      {productos
-                        .filter(p => {
-                          const coincide = p.nombre.toLowerCase().includes(busqueda.toLowerCase())
-                          return coincide
-                        })
-                        .sort((a, b) => a.nombre.localeCompare(b.nombre))
-                        .map((p) => (
-                          <li
-                            key={p.id}
-                            className="flex justify-between items-center px-4 py-2 hover:bg-blue-50 transition-colors duration-150"
-                          >
-                            <span
-                              onClick={() => {
-                                agregarProducto(p)
-                                setBusqueda('')
-                                setMostrarSugerencias(false) // cerrar sugerencias al seleccionar
-                              }}
-                              className="cursor-pointer"
+                        {productos
+                          .filter(p => {
+                            const coincide = p.nombre.toLowerCase().includes(busqueda.toLowerCase())
+                            return coincide
+                          })
+                          .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                          .map((p) => (
+                            <li
+                              key={p.id}
+                              className={`flex justify-between items-center px-4 py-2 transition-colors duration-150 ${p.stock === 0 ? 'bg-red-50' : 'hover:bg-blue-50'}`}
                             >
-                              {p.nombre} <span className="text-gray-500 text-sm">({p.unidad || '—'})</span>
-                            </span>
-
-                            <button
-                              title="Agregar producto sin cerrar búsqueda"
-                              onClick={(e) => {
-                                e.stopPropagation() // evitar que dispare el onClick del <span>
-                                agregarProducto(p)
-                                // no limpiamos búsqueda para permitir seguir seleccionando
-                              }}
-                              className="ml-4 text-green-600 font-bold text-xl hover:text-green-800 cursor-pointer"
-                            >
-                              ➕
-                            </button>
-                          </li>
-                        ))}
+                              <span
+                                onClick={() => {
+                                  if (!p.stock || p.stock <= 0) {
+                                    alert('Stock insuficiente');
+                                    return;
+                                  }
+                                  agregarProducto(p)
+                                  setBusqueda('')
+                                  setMostrarSugerencias(false)
+                                }}
+                                className={`cursor-pointer ${p.stock === 0 ? 'text-gray-400 cursor-not-allowed' : ''}`}
+                                title={p.stock === 0 ? 'Stock insuficiente' : ''}
+                              >
+                                {p.nombre}
+                                <span className="text-gray-500 text-sm"> ({p.unidad || '—'})</span>
+                                { p.detalle && <span className="ml-2 text-xs text-gray-500">({p.detalle})</span>}
+                                <span className="flex gap-4 mt-1 text-xs">
+                                  <span className="text-blue-700">{p.marca ? `[${p.marca}]` : ''}</span>
+                                  <span className="text-green-700">Stock: {p.stock ?? '—'}</span>
+                                </span>
+                                {p.stock === 0 && <span className="ml-2 text-red-600 text-xs font-bold">Stock insuficiente</span>}
+                              </span>
+                              <button
+                                title={!p.stock || p.stock <= 0 ? "Stock insuficiente" : "Agregar producto sin cerrar búsqueda"}
+                                disabled={!p.stock || p.stock <= 0}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (p.stock === 0) {
+                                    alert('Stock insuficiente');
+                                    return;
+                                  }
+                                  agregarProducto(p)
+                                }}
+                                className={`ml-4 font-bold text-xl ${p.stock === 0 ? 'text-gray-400 cursor-not-allowed' : 'text-green-600 hover:text-green-800 cursor-pointer'}`}
+                              >
+                                ➕
+                              </button>
+                            </li>
+                          ))}
                       </ul>
+
                     </div>
                     )}
                     </div>
@@ -445,7 +602,10 @@ await createVentaService({
                             <thead>
                               <tr className="bg-gray-100">
                                 <th className="border px-2 py-1 text-xs">Producto</th>
+                                <th className="border px-2 py-1">Detalle</th>
                                 <th className="border px-2 py-1">Unidad</th>
+                                {/* <th className="border px-2 py-1">Marca</th> */}
+                                {/* <th className="border px-2 py-1">Stock</th> */}
                                 <th className="border px-2 py-1">Cantidad</th>
                                 <th className="border px-2 py-1">P. Unit</th>
                                 <th className="border px-2 py-1">Total</th>
@@ -456,7 +616,10 @@ await createVentaService({
                               {pedido.map(({ producto, cantidad }) => (
                                 <tr key={producto.id}>
                                   <td className="border px-2 py-1 text-xs break-words">{producto.nombre}</td>
+                                  <td className="border px-2 py-1 text-xs break-words">{producto.detalle}</td>
                                   <td className="border px-2 py-1">{producto.unidad || '—'}</td>
+                                  {/* <td className="border px-2 py-1">{producto.marca || '—'}</td> */}
+                                  {/* <td className="border px-2 py-1">{producto.stock ?? '—'}</td> */}
                                   <td className="border px-2 py-1">
                                     <input
                                       type="number"
@@ -502,6 +665,9 @@ await createVentaService({
                             <div key={producto.id} className="border p-3 rounded shadow-sm bg-white">
                               <p className="text-sm font-bold">{producto.nombre}</p>
                               <p className="text-xs text-gray-600">Unidad: {producto.unidad || '—'}</p>
+                              <p className="text-xs text-gray-600">Marca: {producto.marca || '—'}</p>
+                              <p className="text-xs text-gray-600">Stock: {producto.stock ?? '—'}</p>
+                              <p className="text-xs text-gray-600">Detalle: {producto.detalle ?? '—'}</p>
 
                               <div className="flex items-center gap-2 mt-2">
                                 <label className="text-sm">Cantidad:</label>
@@ -691,22 +857,30 @@ await createVentaService({
               </div>
             </div>
           ) : (
-            <>
-              <input
-                type="text"
-                placeholder="RUC"
-                className="w-full text-sm px-3 py-2 border rounded"
-                value={cliente.ruc}
-                onChange={(e) => setCliente({ ...cliente, ruc: e.target.value })}
-              />
-              <input
-                type="text"
-                placeholder="Dirección"
-                className="w-full text-sm px-3 py-2 border rounded"
-                value={cliente.direccion}
-                onChange={(e) => setCliente({ ...cliente, direccion: e.target.value })}
-              />
-            </>
+          <>
+            <input
+              type="text"
+              placeholder="Nombres o Razón Social"
+              className="w-full text-sm px-3 py-2 border rounded"
+              value={cliente.nombres}
+              onChange={e => setCliente({ ...cliente, nombres: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="DNI o RUC"
+              className="w-full text-sm px-3 py-2 border rounded"
+              value={cliente.dni}
+              onChange={e => setCliente({ ...cliente, dni: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="Dirección"
+              className="w-full text-sm px-3 py-2 border rounded"
+              value={cliente.direccion}
+              onChange={e => setCliente({ ...cliente, direccion: e.target.value })}
+            />
+          </>
+
           )}
         </div>
               <div className="flex justify-end gap-3 mt-4">
@@ -721,17 +895,16 @@ await createVentaService({
                 </button>
                 <button
                   onClick={() => {
-                    const tipo = tipoComprobante.split('/')[0]
-                    if (tipo === '03' && (!cliente.nombres || !cliente.dni)) {
-                      alert('Completa todos los campos para boleta.')
-                      return
-                    }
-                    if (tipo === '01' && !clienteSeleccionado) {
-                      alert('Debes seleccionar un cliente válido para factura.')
-                      return
-                    }
-                    guardarPedido()
-                    setMostrarClienteModal(false)
+                  if (!cliente.nombres || !cliente.dni || !cliente.direccion) {
+                    alert('Completa todos los campos del cliente.')
+                    return
+                  }
+                  guardarPedido()
+                  setCliente({ nombres: '', dni: '', direccion: '', ruc: '', razonSocial: '' })
+                  setClienteSeleccionado(null)
+                  setBusquedaCliente('')
+                  setSugerencias([])
+                  setMostrarClienteModal(false)
                   }}
                   className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded cursor-pointer hover:bg-blue-700 transition"
                 >
@@ -844,12 +1017,19 @@ await createVentaService({
               </div>
 
               <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setMostrarNuevoClienteModal(false)}
-                  className="border px-4 py-2 rounded hover:bg-gray-200"
-                >
-                  Cancelar
-                </button>
+              <button
+                onClick={() => {
+                  setMostrarClienteModal(false)
+                  setCliente({ nombres: '', dni: '', direccion: '', ruc: '', razonSocial: '' })
+                  setClienteSeleccionado(null)
+                  setBusquedaCliente('')
+                  setSugerencias([])
+                }}
+                className="w-full sm:w-auto border px-4 py-2 rounded cursor-pointer hover:bg-gray-200 transition"
+              >
+                Cancelar
+              </button>
+
                 <button
                   onClick={handleGuardarNuevoCliente}
                   className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
